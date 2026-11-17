@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<title>Мемо-гача</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<style>
+  :root { --bg:#fff; --text:#111; --muted:#888; --border:#e3e3e3; --accent:#2b8fe6; }
+  body { margin:0; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); }
+  .wrap { max-width:420px; margin:0 auto; padding:16px; display:flex; flex-direction:column; gap:12px; }
+  .top { display:flex; justify-content:space-between; align-items:baseline; }
+  .title { font-size:17px; font-weight:600; }
+  .coins { font-size:14px; color:var(--muted); }
+  .card { border:1px solid var(--border); border-radius:14px; padding:28px 16px; text-align:center;
+          display:flex; flex-direction:column; align-items:center; gap:8px; min-height:160px;
+          justify-content:center; }
+  .emoji { font-size:52px; }
+  .mname { font-size:18px; font-weight:600; }
+  .quote { font-size:13px; color:var(--muted); }
+  .rarity { display:inline-block; font-size:12px; padding:3px 10px; border-radius:6px; border:1px solid var(--border); }
+  .rarity.common { color:#777; background:#f2f2f2; }
+  .rarity.rare { color:#2b8fe6; background:#e8f3fc; border-color:#2b8fe6; }
+  .rarity.epic { color:#8a4be0; background:#f2eafc; border-color:#8a4be0; }
+  .rarity.legendary { color:#b8860b; background:#fdf5e0; border-color:#b8860b; }
+  .rarity.mythic { color:#d33; background:#fdeaea; border-color:#d33; }
+  .btn { font-size:15px; padding:13px; border-radius:10px; border:none; background:#111; color:#fff;
+         cursor:pointer; font-weight:600; }
+  .btn:disabled { opacity:.4; }
+  .shop { display:flex; gap:8px; }
+  .shop .btn { flex:1; background:var(--accent); font-size:13px; padding:10px; }
+  .wlist { display:flex; gap:6px; flex-wrap:wrap; }
+  .w { font-size:11px; padding:2px 8px; border-radius:6px; border:1px solid var(--border); color:var(--muted); }
+  .ctitle { font-size:14px; font-weight:600; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(72px,1fr)); gap:8px; }
+  .cell { border:1px solid var(--border); border-radius:10px; padding:8px 4px; text-align:center;
+          font-size:11px; color:var(--muted); }
+  .cell .e { font-size:26px; display:block; }
+  .cell.locked { opacity:.35; }
+  @keyframes pop { 0%{transform:scale(.85);} 60%{transform:scale(1.05);} 100%{transform:scale(1);} }
+  .card.pop { animation:pop .3s ease-out; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="top"><span class="title">🎰 Мемо-гача</span><span class="coins" id="coins">🪙 50</span></div>
+  <div class="card" id="card">
+    <span class="emoji" id="emoji">🎰</span>
+    <span class="mname" id="mname">Нажми «Крутить»</span>
+    <span class="quote" id="quote">Обычная 60% · Редкая 25% · Эпик 10% · Лега 4% · Миф 1%</span>
+    <span class="rarity common" id="rarity" style="visibility:hidden">редкость</span>
+  </div>
+  <button class="btn" id="spin">Крутить · 10 🪙</button>
+  <div class="shop">
+    <button class="btn" id="buy100">100 🪙 · Stars</button>
+    <button class="btn" id="buy500">550 🪙 · Stars</button>
+  </div>
+  <div class="wlist">
+    <span class="w">Обычная 60%</span><span class="w">Редкая 25%</span>
+    <span class="w">Эпик 10%</span><span class="w">Лега 4%</span><span class="w">Миф 1%</span>
+  </div>
+  <span class="ctitle">Коллекция · <span id="ccount">0</span>/15</span>
+  <div class="grid" id="grid"></div>
+</div>
+<script>
+var tg = window.Telegram && window.Telegram.WebApp;
+if (tg) { tg.ready(); tg.expand(); }
+
+var MEMES = [
+  {e:'🕺', n:'Рикролл', q:'Never gonna give you up', r:'common', w:600},
+  {e:'🐈', n:'Грумпи-кот', q:'Нет.', r:'common', w:600},
+  {e:'😑', n:'Харольд', q:'Скрывает боль', r:'common', w:600},
+  {e:'🗿', n:'Моаи', q:'Стоически молчит', r:'common', w:600},
+  {e:'🧢', n:'Дрейк', q:'Не нравится → нравится', r:'rare', w:250},
+  {e:'🦈', n:'Акулёнок', q:'Растоптал конкурентов', r:'rare', w:250},
+  {e:'🐕‍🦺', n:'Собака в огне', q:'Это нормально', r:'rare', w:250},
+  {e:'🤡', n:'Клоун', q:'Прямо как я', r:'rare', w:250},
+  {e:'🐕', n:'Доджи', q:'Много wow', r:'epic', w:100},
+  {e:'👹', n:'Шрек', q:'Жопу намылил', r:'epic', w:100},
+  {e:'🤨', n:'Скала', q:'Поднял бровь', r:'epic', w:100},
+  {e:'💪', n:'Гигачад', q:'Абсолютный образец', r:'legendary', w:40},
+  {e:'🥶', n:'Холодный чел', q:'Ноль эмоций', r:'legendary', w:40},
+  {e:'🐸', n:'Пепе', q:'Редчайшая лягушка', r:'mythic', w:10},
+  {e:'🌌', n:'???', q:'Мем будущего', r:'mythic', w:10}
+];
+var RLABEL = {common:'Обычная', rare:'Редкая', epic:'Эпическая', legendary:'Легендарная', mythic:'Мифическая'};
+
+var coins = 50, owned = {};
+try { var s = localStorage.getItem('memegacha'); if (s) { s = JSON.parse(s); coins = s.coins; owned = s.owned || {}; } } catch(e) {}
+function save(){ try { localStorage.setItem('memegacha', JSON.stringify({coins:coins, owned:owned})); } catch(e) {} }
+
+var grid = document.getElementById('grid');
+MEMES.forEach(function(m, i){
+  var d = document.createElement('div');
+  d.className = 'cell locked'; d.id = 'cell' + i;
+  d.innerHTML = '<span class="e">'+m.e+'</span>'+m.n+' <span id="cnt'+i+'" style="color:#aaa"></span>';
+  grid.appendChild(d);
+});
+function render(){
+  document.getElementById('coins').textContent = '🪙 ' + coins;
+  var n = 0;
+  MEMES.forEach(function(m,i){
+    var c = owned[i] || 0;
+    document.getElementById('cell'+i).className = c ? 'cell' : 'cell locked';
+    document.getElementById('cnt'+i).textContent = c > 1 ? '×'+c : '';
+    if (c) n++;
+  });
+  document.getElementById('ccount').textContent = n;
+  document.getElementById('spin').disabled = coins < 10;
+}
+function pick(){
+  var t = MEMES.reduce(function(s,m){return s+m.w;},0), x = Math.random()*t;
+  for (var i=0;i<MEMES.length;i++){ x -= MEMES[i].w; if (x <= 0) return i; }
+  return 0;
+}
+document.getElementById('spin').addEventListener('click', function(){
+  if (coins < 10) return;
+  coins -= 10; save();
+  this.disabled = true;
+  var idx = pick(), m = MEMES[idx];
+  owned[idx] = (owned[idx] || 0) + 1;
+  var btn = this, steps = 12, k = 0;
+  var iv = setInterval(function(){
+    var p = MEMES[Math.floor(Math.random()*MEMES.length)];
+    document.getElementById('emoji').textContent = p.e;
+    document.getElementById('mname').textContent = '...';
+    document.getElementById('rarity').style.visibility = 'hidden';
+    if (++k >= steps){
+      clearInterval(iv);
+      document.getElementById('emoji').textContent = m.e;
+      document.getElementById('mname').textContent = m.n;
+      document.getElementById('quote').textContent = m.q;
+      var r = document.getElementById('rarity');
+      r.className = 'rarity ' + m.r; r.textContent = RLABEL[m.r];
+      r.style.visibility = 'visible';
+      var card = document.getElementById('card');
+      card.classList.remove('pop'); void card.offsetWidth; card.classList.add('pop');
+      save(); render();
+    }
+  }, 70);
+});
+
+/* --- Оплата Telegram Stars (подключи к своему бэкенду для выдачи товаров) --- */
+function buyStars(amount, coinsToAdd){
+  if (!tg || !tg.openInvoice) { alert('Открой через Telegram (BotFather → Menu Button / WebApp)'); return; }
+  // Реальную ссылку на инвойс даёт твой бэкенд через Bot API: createInvoiceLink
+  // fetch('https://ТВОЙ_СЕРВЕР/invoice', ...).then(url => tg.openInvoice(url, handler))
+  alert('Здесь подключается инвойс Telegram Stars: твой сервер вызывает createInvoiceLink, возвращает ссылку, а tg.openInvoice(url) открывает оплату. После оплаты накинуть ' + coinsToAdd + ' 🪙.');
+}
+document.getElementById('buy100').addEventListener('click', function(){ buyStars(50, 100); });
+document.getElementById('buy500').addEventListener('click', function(){ buyStars(250, 550); });
+
+render();
+</script>
+</body>
+</html>
