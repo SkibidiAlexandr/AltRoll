@@ -8,6 +8,7 @@
 <style>
   :root { --bg:#17101f; --panel:#221830; --text:#f0e7f5; --muted:#9a8aa8; --border:#3a2b4c; --accent:#e0457b; --gold:#e8b84a; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+  html, body { overscroll-behavior-y:none; }
   body { margin:0; font-family:-apple-system,'Segoe UI',Roboto,sans-serif; background:var(--bg); color:var(--text); }
   .wrap { max-width:440px; margin:0 auto; padding:16px 16px 96px; display:flex; flex-direction:column; gap:12px; }
   .top { display:flex; justify-content:space-between; align-items:baseline; }
@@ -135,7 +136,7 @@
   <!-- Инвентарь -->
   <section class="view" id="v-inv">
     <div class="bar2"><span class="h" id="invTitle">Инвентарь</span><button class="btn alt" id="sellDupes">Продать дубликаты</button></div>
-    <div class="sub">Нажми на карточку, чтобы посмотреть характеристики</div>
+    <div class="sub">Плюс к доходу и цене: неполная семья, альтушка, общительная. Нажми на карточку, чтобы посмотреть подробности.</div>
     <div class="list" id="invList"></div>
   </section>
 
@@ -170,10 +171,10 @@
 
 <script>
 var tg = window.Telegram && window.Telegram.WebApp;
-if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#17101f'); tg.setBackgroundColor('#17101f'); } catch(e) {} }
+if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#17101f'); tg.setBackgroundColor('#17101f'); } catch(e) {}
+  try { tg.disableVerticalSwipes(); } catch(e) {} }
 
-/* Все персонажи вымышленные. Фото кладутся в папку img/ под именем id: img/vera.jpg (или .png).
-   Если фото нет, показывается эмодзи. */
+/* Все персонажи вымышленные. Фото пока отключены (поле id оставлено на будущее). */
 var G = [
   {id:'alisa',  e:'🎧', n:'Алиса',  r:'common', w:600},
   {id:'vera',   e:'🦇', n:'Вера',   r:'common', w:600},
@@ -194,14 +195,14 @@ var G = [
 var RL = {common:'Обычная', rare:'Редкая', epic:'Эпическая', legendary:'Легендарная', mythic:'Мифическая'};
 var RORD = {common:0, rare:1, epic:2, legendary:3, mythic:4};
 var RANGE = {common:[10,60], rare:[20,70], epic:[35,85], legendary:[50,95], mythic:[65,100]};
-var FAM  = ['Неполная семья', 'Полная семья'];
+var FAM  = ['Неполная семья', 'Полная семья'];            // индекс 0 = неполная (лучше), 1 = полная
 var TYPE = ['Нормис', 'Альтушка'];
-var GEN  = ['Скупая', 'Щедрая'];
-var M_FAM = 1.1, M_TYPE = 1.25, M_GEN = 1.1;           // множители к доходу и цене за «плюсовую» особенность
+var GEN  = ['Необщительная', 'Общительная'];
+var M_FAM = 1.25, M_TYPE = 1.25, M_GEN = 1.1;          // множители к доходу и цене: неполная семья, альтушка, общительная
 
 /* Экономика */
 var COST = 10, CAP_H = 12;
-var BASE_INC  = {common:0.08, rare:0.2, epic:0.4, legendary:0.8, mythic:1.5};   // монет в МИНУТУ (умножается на силу и особенности)
+var BASE_INC  = {common:0.4, rare:1, epic:2, legendary:4, mythic:8};   // монет в МИНУТУ (умножается на силу и особенности)
 var SELL_BASE = {common:3, rare:8, epic:20, legendary:60, mythic:150};
 var EV_LUCKY = 15, EV_BAN = 10;                          // шанс (%) что данный час будет удачной рыбалкой / запретом
 
@@ -242,7 +243,7 @@ function pick(){
   for (var i = 0; i < G.length; i++){ x -= G[i].w; if (x <= 0) return i; }
   return 0;
 }
-function traitMult(x){ return (x.f ? M_FAM : 1) * (x.t ? M_TYPE : 1) * (x.k ? M_GEN : 1); }
+function traitMult(x){ return (x.f ? 1 : M_FAM) * (x.t ? M_TYPE : 1) * (x.k ? M_GEN : 1); }
 function rateOf(x){ return BASE_INC[G[x.i].r] * (0.5 + x.q / 100) * traitMult(x); }        // монет в минуту
 function priceOf(x){ return Math.max(1, Math.round(SELL_BASE[G[x.i].r] * (0.6 + 0.8 * x.q / 100) * traitMult(x))); }
 function totalRate(){ return S.inv.reduce(function(s, x){ return s + rateOf(x); }, 0); }
@@ -267,16 +268,9 @@ function accrued(from, to){                // сколько монет нака
   return t * sum;
 }
 
-/* фото с запасным эмодзи */
+/* аватар (пока только эмодзи) */
 function avatar(m, cls){
-  var d = el('div', 'av ' + cls + ' ' + m.r, '<span class="fb">' + m.e + '</span>');
-  var img = new Image(), tried = 0;
-  img.alt = '';
-  img.onload = function(){ d.classList.add('has'); };
-  img.onerror = function(){ if (tried++ === 0) img.src = 'img/' + m.id + '.png'; else img.remove(); };
-  img.src = 'img/' + m.id + '.jpg';
-  d.appendChild(img);
-  return d;
+  return el('div', 'av ' + cls + ' ' + m.r, '<span class="fb">' + m.e + '</span>');
 }
 
 /* карточка с характеристиками */
@@ -287,7 +281,7 @@ function cardEl(inst, note){
   c.appendChild(el('span', 'rarity ' + m.r, RL[m.r]));
   if (note) c.appendChild(el('span', 'meta', note));
   c.appendChild(el('div', 'chips',
-    '<span class="chip' + (inst.f ? ' on' : '') + '">' + FAM[inst.f] + '</span>' +
+    '<span class="chip' + (inst.f ? '' : ' on') + '">' + FAM[inst.f] + '</span>' +
     '<span class="chip' + (inst.t ? ' on' : '') + '">' + TYPE[inst.t] + '</span>' +
     '<span class="chip' + (inst.k ? ' on' : '') + '">' + GEN[inst.k] + '</span>'));
   c.appendChild(el('div', 'stats', '<div class="stat"><span>⭐ Сила</span><span class="bar"><i style="width:' + inst.q + '%"></i></span><span>' + inst.q + '</span></div>'));
@@ -466,31 +460,39 @@ function idleCard(){
   c.appendChild(el('span', 'quote', 'У каждой выпавшей карточки свои случайные характеристики'));
   return c;
 }
+function finishSpin(inst){
+  spinning = false;
+  var res = $('result'), c = cardEl(inst);
+  c.classList.add('pop');
+  res.innerHTML = ''; res.appendChild(c);
+  updateTop(); tick();
+}
 $('spin').addEventListener('click', function(){
   if (spinning || S.coins < COST) return;
-  bank();
+  try { bank(); } catch(e) {}
   S.coins -= COST; spinning = true;
   var idx = pick(), r = rollInstance(idx);
   var inst = {id:S.nid++, i:idx, q:r.q, f:r.f, t:r.t, k:r.k};
   S.inv.push(inst); S.disc[idx] = true;
   if (!S.best[idx] || rateOf(inst) > rateOf(S.best[idx])) S.best[idx] = inst;
-  save(); updateTop(); tick();
+  save(); updateTop();
   var res = $('result'), ph = idleCard();
   res.innerHTML = ''; res.appendChild(ph);
   var fb = ph.querySelector('.fb'), nm = ph.querySelector('.mname');
   ph.querySelector('.quote').textContent = '';
-  var k = 0;
-  var iv = setInterval(function(){
-    fb.textContent = oneOf(G).e; nm.textContent = '...';
-    if (++k >= 12){
-      clearInterval(iv);
-      spinning = false;
-      var c = cardEl(inst); c.classList.add('pop');
-      res.innerHTML = ''; res.appendChild(c);
-      updateTop(); tick();
-    }
+  var k = 0, done = false, iv = null;
+  function end(){
+    if (done) return;
+    done = true; clearInterval(iv);
+    try { finishSpin(inst); } catch(e) { spinning = false; updateTop(); }
+  }
+  iv = setInterval(function(){
+    try { fb.textContent = oneOf(G).e; nm.textContent = '...'; } catch(e) {}
+    if (++k >= 12) end();
   }, 70);
+  setTimeout(end, 1500);          // страховка: крутка всегда заканчивается
 });
+window.addEventListener('error', function(){ if (spinning) { spinning = false; try { updateTop(); } catch(e) {} } });
 
 /* ---------- вкладки ---------- */
 function go(v){
@@ -502,7 +504,7 @@ function go(v){
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('.nav button').forEach(function(b){
-  b.addEventListener('click', function(){ if (!spinning) go(b.getAttribute('data-v')); });
+  b.addEventListener('click', function(){ go(b.getAttribute('data-v')); });
 });
 
 $('result').appendChild(idleCard());
