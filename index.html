@@ -126,6 +126,15 @@
   .nav .dot { position:absolute; top:6px; left:calc(50% + 8px); width:8px; height:8px; border-radius:50%; background:var(--accent); display:none; }
   .nav .dot.show { display:block; }
 
+  /* кнопка «Крутить» закреплена снизу по центру, над меню */
+  .spinbar { position:fixed; left:0; right:0; bottom:calc(64px + env(safe-area-inset-bottom,0px)); z-index:4;
+             display:flex; flex-direction:column; align-items:center; gap:6px; padding:0 16px; pointer-events:none; }
+  .spinbar > * { pointer-events:auto; }
+  .spinbar .btn { width:min(320px,100%); padding:15px; font-size:16px; box-shadow:0 8px 24px rgba(0,0,0,.55); }
+  .spinbar .note { background:rgba(23,16,31,.92); padding:4px 10px; border-radius:8px; }
+  .spinbar .note:empty { display:none; }
+  #v-spin { padding-bottom:96px; }
+  .row.off { opacity:.62; }
   .modal { position:fixed; inset:0; background:rgba(8,4,12,.8); display:none; align-items:flex-start; justify-content:center; z-index:10; padding:16px; overflow:auto; }
   .modal.on { display:flex; }
   .modal .inner { width:100%; max-width:380px; display:flex; flex-direction:column; gap:10px; margin:auto 0; }
@@ -144,10 +153,9 @@
   <section class="view on" id="v-spin">
     <div class="locs" id="locs"></div>
     <div id="result"></div>
-    <button class="btn" id="spin">Крутить</button>
-    <div class="note" id="spinNote"></div>
     <span class="h">Кто здесь водится</span>
     <div class="odds" id="odds"></div>
+    <div class="spinbar"><div class="note" id="spinNote"></div><button class="btn" id="spin">Крутить</button></div>
   </section>
 
   <!-- Клик -->
@@ -168,7 +176,7 @@
   <!-- Инвентарь -->
   <section class="view" id="v-inv">
     <div class="bar2"><span class="h" id="invTitle">Инвентарь</span><button class="btn alt" id="sellDupes">Продать дубликаты</button></div>
-    <div class="sub">Плюс к доходу и цене: неполная семья, альтушка, общительная. Нажми на карточку, чтобы посмотреть подробности и пообщаться с ней: так растёт уровень и сила.</div>
+    <div class="sub">Плюс к доходу и цене: неполная семья, альтушка, общительная. Доход приносят лучшие карточки (по числу слотов), остальные затемнены. Нажми на карточку, чтобы пообщаться с ней: так растёт уровень и сила.</div>
     <div class="list" id="invList"></div>
   </section>
 
@@ -183,8 +191,14 @@
   <section class="view" id="v-inc">
     <div class="box" id="dailyBox"></div>
     <div class="box">
+      <span class="h">Слоты дохода</span>
+      <div class="sub">Доход приносят только лучшие карточки по доходу, по числу слотов. Остальные лежат без дела: их можно продать или прокачать.</div>
+      <div class="sub" id="slotInfo"></div>
+      <button class="btn alt" id="slotBtn"></button>
+    </div>
+    <div class="box">
       <span class="h">Пассивный доход</span>
-      <div class="sub">Каждая карточка в инвентаре приносит монеты каждую минуту. Накапливается до 12 часов, потом нужно собрать. Иногда случаются часы удачной рыбалки (доход ×2) и запреты (доход стоит).</div>
+      <div class="sub">Карточки в слотах приносят монеты каждую минуту. Накапливается до 12 часов, потом нужно собрать. Иногда случаются часы удачной рыбалки (доход ×2) и запреты (доход стоит).</div>
       <div class="bignum" id="pend">0</div>
       <div class="sub" id="rateInfo"></div>
       <button class="btn" id="collect">Собрать</button>
@@ -210,10 +224,10 @@ if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#17101f'); tg.setBac
 /* ---------- локации ---------- */
 /* cost: цена крутки, unlock: цена открытия, qb: бонус к силе выпавших карточек */
 var LOC = [
-  {n:'Китай-город', e:'🏙️', cost:10,  unlock:0,    qb:0},
-  {n:'Бибинто',     e:'🍸', cost:25,  unlock:200,  qb:5},
-  {n:'Дайвинчик',   e:'💘', cost:50,  unlock:800,  qb:10},
-  {n:'Ashqua',      e:'💎', cost:120, unlock:2500, qb:15}
+  {n:'Китай-город', e:'🏙️', cost:100,  unlock:0,     qb:0},
+  {n:'Бибинто',     e:'🍸', cost:250,  unlock:2000,  qb:5},
+  {n:'Дайвинчик',   e:'💘', cost:500,  unlock:10000, qb:10},
+  {n:'Ashqua',      e:'💎', cost:1200, unlock:40000, qb:15}
 ];
 
 /* Все персонажи вымышленные. loc — номер локации, w — вес выпадения внутри локации.
@@ -254,29 +268,34 @@ var M_FAM = 1.25, M_TYPE = 1.25, M_GEN = 1.1;           // множители к
 
 /* Экономика */
 var CAP_H = 12;
-var BASE_INC  = {common:0.4, rare:1, epic:2, legendary:4, mythic:8};   // монет в МИНУТУ (умножается на силу и особенности)
-var SELL_BASE = {common:3, rare:8, epic:20, legendary:60, mythic:150};
+var BASE_INC  = {common:0.2, rare:0.5, epic:1.2, legendary:2.8, mythic:6};   // монет в МИНУТУ (умножается на силу и особенности)
+var SELL_BASE = {common:40, rare:100, epic:250, legendary:700, mythic:1700};
+var SLOTS0 = 6, MAX_SLOTS = 14;                          // слоты дохода: сколько карточек одновременно приносят монеты
 var EV_LUCKY = 15, EV_BAN = 10;                          // шанс (%) что данный час будет удачной рыбалкой / запретом
 
 /* Взаимодействие: уровень повышает силу карточки */
 var MAXLV = 10, LV_Q = 4;                                // +4 к силе за уровень
 var ACTS = [
-  {n:'Написать сообщение', e:'💬', cost:0,   xp:8,   cd:120000},
-  {n:'Угостить кофе',      e:'☕', cost:30,  xp:30,  cd:0},
-  {n:'Прогулка по городу', e:'🌆', cost:100, xp:110, cd:0},
-  {n:'Сходить на концерт', e:'🎤', cost:300, xp:400, cd:0}
+  {n:'Написать сообщение', e:'💬', cost:0,    xp:8,   cd:120000},
+  {n:'Угостить кофе',      e:'☕', cost:300,  xp:30,  cd:0},
+  {n:'Прогулка по городу', e:'🌆', cost:1000, xp:110, cd:0},
+  {n:'Сходить на концерт', e:'🎤', cost:3000, xp:400, cd:0}
 ];
+var ACT_MULT = {common:1, rare:1.5, epic:2.5, legendary:4, mythic:7};   // чем реже карточка, тем дороже общение
+function actCost(a, inst){ return Math.round(a.cost * ACT_MULT[G[inst.i].r]); }
 function xpNeed(l){ return 40 * (l + 1); }
 
 /* Кликер */
-var EN_REGEN_MS = 2000;                                  // 1 энергия за 2 секунды
-function clickValue(){ return 1 + S.clk.lvl; }
+var EN_REGEN_MS = 8000;                                  // 1 энергия за 8 секунд
+var TAP_BASE = 10, MAX_CLK = 8, MAX_EN = 5;
+function clickValue(){ return TAP_BASE * (1 + S.clk.lvl); }
 function enMax(){ return 100 + 20 * S.clk.ml; }
-function costPow(){ return Math.round(20 * Math.pow(1.45, S.clk.lvl)); }
-function costEn(){ return Math.round(40 * Math.pow(1.5, S.clk.ml)); }
+function costPow(){ return Math.round(300 * Math.pow(1.7, S.clk.lvl)); }
+function costEn(){ return Math.round(500 * Math.pow(1.6, S.clk.ml)); }
+function costSlot(){ return Math.round(1500 * Math.pow(1.7, S.slots - SLOTS0)); }
 
 /* ---------- состояние ---------- */
-var S = {coins:100, inv:[], disc:{}, best:{}, nid:1, last:Date.now(), pend:0, daily:{last:'', streak:0},
+var S = {eco:2, slots:SLOTS0, coins:1000, inv:[], disc:{}, best:{}, nid:1, last:Date.now(), pend:0, daily:{last:'', streak:0},
          seed:Math.floor(Math.random() * 2e9) + 1, loc:0, unlocked:{0:true}, clk:{lvl:0, ml:0, n:0}, en:{v:100, t:Date.now()}};
 (function load(){
   try {
@@ -284,11 +303,16 @@ var S = {coins:100, inv:[], disc:{}, best:{}, nid:1, last:Date.now(), pend:0, da
     if (raw) {
       var o = JSON.parse(raw);
       for (var k in o) S[k] = o[k];
+      if (!o.eco) {                                          // перенос на новую экономику (все суммы ×10)
+        S.coins = Math.round((o.coins || 0) * 10); S.pend = (o.pend || 0) * 10; S.eco = 2;
+        S.slots = SLOTS0;
+        if (S.clk) { S.clk.lvl = Math.min(S.clk.lvl || 0, MAX_CLK); S.clk.ml = Math.min(S.clk.ml || 0, MAX_EN); }
+      }
     } else {
       var o2 = localStorage.getItem('altroll2');           // перенос прошлой версии
       if (o2) {
         o2 = JSON.parse(o2);
-        S.coins = o2.coins || 0; S.nid = o2.nid || 1; S.disc = o2.disc || {}; S.daily = o2.daily || S.daily;
+        S.coins = (o2.coins || 0) * 10; S.nid = o2.nid || 1; S.disc = o2.disc || {}; S.daily = o2.daily || S.daily;
         var byId = {};
         var conv = function(x){
           if (byId[x.id]) return byId[x.id];
@@ -330,7 +354,13 @@ function pow(x){ return x.q + LV_Q * (x.l || 0); }
 function traitMult(x){ return (x.f ? 1 : M_FAM) * (x.t ? M_TYPE : 1) * (x.k ? M_GEN : 1); }
 function rateOf(x){ return BASE_INC[G[x.i].r] * (0.5 + pow(x) / 100) * traitMult(x); }        // монет в минуту
 function priceOf(x){ return Math.max(1, Math.round(SELL_BASE[G[x.i].r] * (0.6 + 0.8 * pow(x) / 100) * traitMult(x))); }
-function totalRate(){ return S.inv.reduce(function(s, x){ return s + rateOf(x); }, 0); }
+function earners(){                                      // лучшие по доходу карточки, их ровно столько, сколько слотов
+  var a = S.inv.map(function(x){ return [rateOf(x), x]; });
+  a.sort(function(p, q){ return q[0] - p[0]; });
+  return a.slice(0, S.slots);
+}
+function earnIds(){ var m = {}; earners().forEach(function(p){ m[p[1].id] = 1; }); return m; }
+function totalRate(){ return earners().reduce(function(s, p){ return s + p[0]; }, 0); }
 function fmtRate(n){ return (n < 1 ? n.toFixed(2) : n.toFixed(1)); }
 
 /* случайные события: каждый час по часам устройства */
@@ -368,7 +398,7 @@ function cardEl(inst, note){
     '<span class="chip' + (inst.t ? ' on' : '') + '">' + TYPE[inst.t] + '</span>' +
     '<span class="chip' + (inst.k ? ' on' : '') + '">' + GEN[inst.k] + '</span>'));
   c.appendChild(el('div', 'stats', '<div class="stat"><span>⭐ Сила</span><span class="bar"><i style="width:' + Math.min(100, pow(inst)) + '%"></i></span><span>' + pow(inst) + '</span></div>'));
-  c.appendChild(el('div', 'income', '+' + fmtRate(rateOf(inst)) + ' 🪙/мин · продажа ' + priceOf(inst) + ' 🪙'));
+  c.appendChild(el('div', 'income', '+' + fmtRate(rateOf(inst)) + ' 🪙/мин' + (earnIds()[inst.id] ? '' : ' (нет слота)') + ' · продажа ' + priceOf(inst) + ' 🪙'));
   return c;
 }
 
@@ -385,15 +415,16 @@ function actPanel(inst, note){
   }
   ACTS.forEach(function(a){
     var left = a.cd ? Math.max(0, Math.ceil(((inst.cd || 0) - Date.now()) / 1000)) : 0;
-    var label = a.e + ' ' + a.n + ' · ' + (a.cost ? a.cost + ' 🪙' : 'бесплатно') + ' · +' + a.xp + ' оч.' + (left ? ' · ещё ' + left + ' с' : '');
+    var cst = actCost(a, inst);
+    var label = a.e + ' ' + a.n + ' · ' + (cst ? cst + ' 🪙' : 'бесплатно') + ' · +' + a.xp + ' оч.' + (left ? ' · ещё ' + left + ' с' : '');
     var b = el('button', 'btn alt', label);
-    b.disabled = l >= MAXLV || S.coins < a.cost;
+    b.disabled = l >= MAXLV || S.coins < cst;
     b.onclick = function(){
       if (l >= MAXLV) return;
       if (a.cd && (inst.cd || 0) > Date.now()){ openModal(inst, note); return; }
-      if (S.coins < a.cost) return;
+      if (S.coins < cst) return;
       bank();
-      S.coins -= a.cost;
+      S.coins -= cst;
       inst.l = inst.l || 0; inst.xp = (inst.xp || 0) + a.xp;
       while (inst.l < MAXLV && inst.xp >= xpNeed(inst.l)){ inst.xp -= xpNeed(inst.l); inst.l++; }
       if (inst.l >= MAXLV) inst.xp = 0;
@@ -438,7 +469,7 @@ function todayStr(){ return dstr(new Date()); }
 function yesterdayStr(){ var d = new Date(); d.setDate(d.getDate() - 1); return dstr(d); }
 function dailyAvailable(){ return S.daily.last !== todayStr(); }
 function nextStreak(){ return S.daily.last === yesterdayStr() ? S.daily.streak + 1 : 1; }
-function dayReward(day){ return 30 + 10 * (day - 1); }
+function dayReward(day){ return 300 + 100 * (day - 1); }
 function renderDaily(){
   var box = $('dailyBox'); box.innerHTML = '';
   var avail = dailyAvailable();
@@ -475,10 +506,10 @@ function renderClk(){
   $('tap').classList.toggle('empty', e < 1);
   $('clkInfo').textContent = '+' + clickValue() + ' 🪙 за тап · тапов всего: ' + S.clk.n;
   var p = $('upPow'), n = $('upEn');
-  p.textContent = '💪 Сила тапа ' + S.clk.lvl + ' → ' + (S.clk.lvl + 1) + ' · ' + costPow() + ' 🪙';
-  p.disabled = S.coins < costPow();
-  n.textContent = '🔋 Запас энергии ' + mx + ' → ' + (mx + 20) + ' · ' + costEn() + ' 🪙';
-  n.disabled = S.coins < costEn();
+  if (S.clk.lvl >= MAX_CLK){ p.textContent = '💪 Сила тапа: максимум'; p.disabled = true; }
+  else { p.textContent = '💪 Сила тапа ' + S.clk.lvl + ' → ' + (S.clk.lvl + 1) + ' · ' + costPow() + ' 🪙'; p.disabled = S.coins < costPow(); }
+  if (S.clk.ml >= MAX_EN){ n.textContent = '🔋 Запас энергии: максимум (' + mx + ')'; n.disabled = true; }
+  else { n.textContent = '🔋 Запас энергии ' + mx + ' → ' + (mx + 20) + ' · ' + costEn() + ' 🪙'; n.disabled = S.coins < costEn(); }
 }
 function tapOnce(ev){
   var e = energyNow();
@@ -498,10 +529,12 @@ function tapOnce(ev){
 $('tap').addEventListener('pointerdown', function(ev){ ev.preventDefault(); tapOnce(ev); });
 $('tap').addEventListener('contextmenu', function(ev){ ev.preventDefault(); });
 $('upPow').addEventListener('click', function(){
+  if (S.clk.lvl >= MAX_CLK) return;
   var c = costPow(); if (S.coins < c) return;
   S.coins -= c; S.clk.lvl++; save(); updateTop(); renderClk();
 });
 $('upEn').addEventListener('click', function(){
+  if (S.clk.ml >= MAX_EN) return;
   var c = costEn(); if (S.coins < c) return;
   S.coins -= c; S.clk.ml++; S.en = {v:energyNow(), t:Date.now()}; save(); updateTop(); renderClk();
 });
@@ -547,12 +580,13 @@ function renderInv(){
   var arr = S.inv.slice().sort(function(a, b){
     return RORD[G[b.i].r] - RORD[G[a.i].r] || rateOf(b) - rateOf(a);
   });
+  var earn = earnIds();
   arr.forEach(function(inst){
-    var m = G[inst.i], row = el('div', 'row');
+    var m = G[inst.i], row = el('div', 'row' + (earn[inst.id] ? '' : ' off'));
     row.appendChild(avatar(m, 'sm'));
     var info = el('div', 'info');
     info.appendChild(el('div', 'nm', m.n + ' <span class="rarity ' + m.r + '">' + RL[m.r] + '</span>'));
-    info.appendChild(el('div', 'sub', 'Ур. ' + (inst.l || 0) + ' · ' + TYPE[inst.t] + ' · ' + (inst.f ? 'полная' : 'неполная') + ' · ' + GEN[inst.k].toLowerCase() + ' · +' + fmtRate(rateOf(inst)) + '/мин'));
+    info.appendChild(el('div', 'sub', 'Ур. ' + (inst.l || 0) + ' · ' + TYPE[inst.t] + ' · ' + (inst.f ? 'полная' : 'неполная') + ' · ' + GEN[inst.k].toLowerCase() + ' · ' + (earn[inst.id] ? '+' + fmtRate(rateOf(inst)) + '/мин' : 'без слота')));
     row.appendChild(info);
     var sb = el('button', 'sellbtn', 'Продать · ' + priceOf(inst));
     var timer = null;
@@ -598,6 +632,18 @@ function renderCol(){
   });
   $('ccount').textContent = n;
 }
+function refreshSlots(){
+  $('slotInfo').textContent = 'Слотов: ' + S.slots + '/' + MAX_SLOTS + ' · карточек в инвентаре: ' + S.inv.length;
+  var b = $('slotBtn');
+  if (S.slots >= MAX_SLOTS){ b.textContent = 'Максимум слотов'; b.disabled = true; }
+  else { b.textContent = 'Открыть слот · ' + costSlot() + ' 🪙'; b.disabled = S.coins < costSlot(); }
+}
+$('slotBtn').addEventListener('click', function(){
+  if (S.slots >= MAX_SLOTS) return;
+  var c = costSlot(); if (S.coins < c) return;
+  bank(); S.coins -= c; S.slots++;
+  save(); updateTop(); refreshSlots(); tick();
+});
 function tick(){
   var t = totalRate(), p = pendingNow(), now = Date.now();
   var h = Math.floor(now / 3600000), mult = hourMult(h), left = Math.ceil(((h + 1) * 3600000 - now) / 60000);
@@ -612,6 +658,7 @@ function tick(){
   $('collect').disabled = Math.floor(p) < 1;
   $('incDot').classList.toggle('show', dailyAvailable() || Math.floor(p) >= 10);
   if ($('v-clk').classList.contains('on')) renderClk();
+  if ($('v-inc').classList.contains('on')) refreshSlots();
 }
 
 /* ---------- действия ---------- */
@@ -709,7 +756,7 @@ function go(v){
   if (v === 'clk') renderClk();
   if (v === 'inv') renderInv();
   if (v === 'col') renderCol();
-  if (v === 'inc') { renderDaily(); tick(); }
+  if (v === 'inc') { renderDaily(); refreshSlots(); tick(); }
   window.scrollTo(0, 0);
 }
 document.querySelectorAll('.nav button').forEach(function(b){
@@ -717,7 +764,7 @@ document.querySelectorAll('.nav button').forEach(function(b){
 });
 
 $('result').appendChild(idleCard());
-renderLocs(); renderOdds(); updateTop(); renderDaily(); tick();
+renderLocs(); renderOdds(); updateTop(); renderDaily(); refreshSlots(); tick();
 setInterval(tick, 1000);
 </script>
 </body>
