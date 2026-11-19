@@ -52,6 +52,12 @@
   .bar { height:6px; border-radius:3px; background:var(--bg); overflow:hidden; }
   .bar i { display:block; height:100%; background:var(--accent); border-radius:3px; }
   .power { font-size:13px; font-weight:600; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; justify-content:center; }
+  .chip { font-size:12px; padding:4px 10px; border-radius:999px; border:1px solid var(--border); background:var(--bg); }
+  .chip.on { border-color:var(--accent); color:#ff8fb3; }
+  .event { display:none; font-size:13px; text-align:center; padding:9px 10px; border-radius:10px; font-weight:600; }
+  .event.good { display:block; background:#13301f; border:1px solid #2f8a55; color:#7be0a3; }
+  .event.bad { display:block; background:#3d1420; border:1px solid #ff4d6d; color:#ff8fa3; }
   .income { font-size:12px; color:var(--gold); }
 
   .btn { font-size:15px; padding:13px; border-radius:10px; border:none; background:var(--accent); color:#fff; cursor:pointer; font-weight:700; }
@@ -113,6 +119,7 @@
 <body>
 <div class="wrap">
   <div class="top"><span class="title">🖤 Альт-гача</span><span class="coins" id="coins">🪙 0</span></div>
+  <div class="event" id="event"></div>
 
   <!-- Крутить -->
   <section class="view on" id="v-spin">
@@ -128,14 +135,14 @@
   <!-- Инвентарь -->
   <section class="view" id="v-inv">
     <div class="bar2"><span class="h" id="invTitle">Инвентарь</span><button class="btn alt" id="sellDupes">Продать дубликаты</button></div>
-    <div class="sub">Нажми на альтушку, чтобы посмотреть характеристики</div>
+    <div class="sub">Нажми на карточку, чтобы посмотреть характеристики</div>
     <div class="list" id="invList"></div>
   </section>
 
   <!-- Коллекция -->
   <section class="view" id="v-col">
     <span class="h">Коллекция · <span id="ccount">0</span>/15</span>
-    <div class="sub">Коллекция не пропадает, даже если продать альтушку. Нажми на карточку, чтобы увидеть лучший экземпляр.</div>
+    <div class="sub">Коллекция не пропадает, даже если продать карточку. Нажми на карточку, чтобы увидеть лучший экземпляр.</div>
     <div class="grid" id="grid"></div>
   </section>
 
@@ -144,7 +151,7 @@
     <div class="box" id="dailyBox"></div>
     <div class="box">
       <span class="h">Пассивный доход</span>
-      <div class="sub">Каждая альтушка в инвентаре приносит монеты. Накапливается до 12 часов, потом нужно собрать.</div>
+      <div class="sub">Каждая карточка в инвентаре приносит монеты каждую минуту. Накапливается до 12 часов, потом нужно собрать. Иногда случаются часы удачной рыбалки (доход ×2) и запреты (доход стоит).</div>
       <div class="bignum" id="pend">0</div>
       <div class="sub" id="rateInfo"></div>
       <button class="btn" id="collect">Собрать</button>
@@ -168,59 +175,58 @@ if (tg) { tg.ready(); tg.expand(); try { tg.setHeaderColor('#17101f'); tg.setBac
 /* Все персонажи вымышленные. Фото кладутся в папку img/ под именем id: img/vera.jpg (или .png).
    Если фото нет, показывается эмодзи. */
 var G = [
-  {id:'alisa',  e:'🎧', n:'Эмо Алиса',        q:'Мой плейлист тебя не поймёт',      r:'common', w:600},
-  {id:'vera',   e:'🦇', n:'Вера Нуар',        q:'Солнце? Нет, спасибо',             r:'common', w:600},
-  {id:'rita',   e:'🛹', n:'Скейт-Рита',       q:'Упала. Встала. Повторила',         r:'common', w:600},
-  {id:'masha',  e:'📼', n:'Гранж-Маша',       q:'Куртка старше меня',               r:'common', w:600},
-  {id:'lena',   e:'🎸', n:'Панк-Лена',        q:'Трёх аккордов хватит',             r:'rare', w:250},
-  {id:'sonya',  e:'🕸️', n:'Пастель-гот Соня', q:'Розовый — это тоже чёрный',        r:'rare', w:250},
-  {id:'diana',  e:'⛓️', n:'Рок-Диана',        q:'Цепи — это аксессуар',             r:'rare', w:250},
-  {id:'ada',    e:'🌙', n:'Ведьмочка Ада',    q:'Гороскоп сегодня на моей стороне', r:'rare', w:250},
-  {id:'kira',   e:'💿', n:'E-girl Кира',      q:'Свет кольцевой лампы — мой друг',  r:'epic', w:100},
-  {id:'lilit',  e:'🥀', n:'Лилит',            q:'Приходит ночью, уходит под утро',  r:'epic', w:100},
-  {id:'mira',   e:'🎹', n:'Синти-Мира',       q:'Неон и дождь за окном',            r:'epic', w:100},
-  {id:'queen',  e:'👑', n:'Королева Мрака',   q:'Трон там, где играет бас',         r:'legendary', w:40},
-  {id:'nina',   e:'🔮', n:'Оккультная Нина',  q:'Карты уже всё сказали',            r:'legendary', w:40},
-  {id:'nox',    e:'🖤', n:'Нокс',             q:'Альт-богиня полуночи',             r:'mythic', w:10},
-  {id:'unknown',e:'🌌', n:'???',              q:'Субкультура будущего',             r:'mythic', w:10}
+  {id:'alisa',  e:'🎧', n:'Алиса',  r:'common', w:600},
+  {id:'vera',   e:'🦇', n:'Вера',   r:'common', w:600},
+  {id:'rita',   e:'🛹', n:'Рита',   r:'common', w:600},
+  {id:'masha',  e:'📼', n:'Маша',   r:'common', w:600},
+  {id:'lena',   e:'🎸', n:'Лена',   r:'rare', w:250},
+  {id:'sonya',  e:'🕸️', n:'Соня',   r:'rare', w:250},
+  {id:'diana',  e:'⛓️', n:'Диана',  r:'rare', w:250},
+  {id:'ada',    e:'🌙', n:'Полина', r:'rare', w:250},
+  {id:'kira',   e:'💿', n:'Кира',   r:'epic', w:100},
+  {id:'lilit',  e:'🥀', n:'Лиля',   r:'epic', w:100},
+  {id:'mira',   e:'🎹', n:'Мира',   r:'epic', w:100},
+  {id:'queen',  e:'👑', n:'Катя',   r:'legendary', w:40},
+  {id:'nina',   e:'🔮', n:'Нина',   r:'legendary', w:40},
+  {id:'nox',    e:'🖤', n:'Ника',   r:'mythic', w:10},
+  {id:'unknown',e:'🌌', n:'Яна',    r:'mythic', w:10}
 ];
 var RL = {common:'Обычная', rare:'Редкая', epic:'Эпическая', legendary:'Легендарная', mythic:'Мифическая'};
 var RORD = {common:0, rare:1, epic:2, legendary:3, mythic:4};
-var STATS = ['Стиль', 'Харизма', 'Мрачность', 'Хаос'];
-var STAT_ICON = ['👗', '✨', '🌑', '🌀'];
 var RANGE = {common:[10,60], rare:[20,70], epic:[35,85], legendary:[50,95], mythic:[65,100]};
-var GENRES = ['пост-панк', 'дарквейв', 'эмо', 'шугейз', 'синтвейв', 'гранж', 'хардкор', 'лоу-фай', 'индастриал'];
-var ACCS = ['чокер', 'цепочка на джинсах', 'кастомные ботинки', 'сетчатые перчатки', 'значки на рюкзаке',
-            'потёртая косуха', 'обесцвеченная чёлка', 'кольцо в носу', 'полосатые гетры', 'винтажный плеер'];
+var FAM  = ['Неполная семья', 'Полная семья'];
+var TYPE = ['Нормис', 'Альтушка'];
+var GEN  = ['Скупая', 'Щедрая'];
+var M_FAM = 1.1, M_TYPE = 1.25, M_GEN = 1.1;           // множители к доходу и цене за «плюсовую» особенность
 
 /* Экономика */
 var COST = 10, CAP_H = 12;
-var BASE_INC  = {common:1, rare:2, epic:5, legendary:10, mythic:20};      // монет в час (умножается на силу)
+var BASE_INC  = {common:0.08, rare:0.2, epic:0.4, legendary:0.8, mythic:1.5};   // монет в МИНУТУ (умножается на силу и особенности)
 var SELL_BASE = {common:3, rare:8, epic:20, legendary:60, mythic:150};
+var EV_LUCKY = 15, EV_BAN = 10;                          // шанс (%) что данный час будет удачной рыбалкой / запретом
 
 /* ---------- состояние ---------- */
-var S = {coins:100, inv:[], disc:{}, best:{}, nid:1, last:Date.now(), pend:0, daily:{last:'', streak:0}};
+var S = {coins:100, inv:[], disc:{}, best:{}, nid:1, last:Date.now(), pend:0, daily:{last:'', streak:0}, seed:Math.floor(Math.random() * 2e9) + 1};
 (function load(){
   try {
-    var raw = localStorage.getItem('altroll2');
+    var raw = localStorage.getItem('altroll3');
     if (raw) { var o = JSON.parse(raw); for (var k in o) S[k] = o[k]; return; }
-    var old = localStorage.getItem('altgacha');          // перенос сохранения первой версии
-    if (old) {
-      old = JSON.parse(old);
-      S.coins = old.coins || 0;
-      for (var i in (old.owned || {})) {
-        S.disc[i] = true;
-        var cnt = old.owned[i];
-        for (var c = 0; c < cnt; c++) {
-          var inst = (c === 0 && old.best && old.best[i]) ? old.best[i] : rollInstance(+i);
-          S.inv.push({id:S.nid++, i:+i, s:inst.s, g:inst.g, a:inst.a, p:inst.p});
-        }
-        if (old.best && old.best[i]) S.best[i] = old.best[i];
+    var o2 = localStorage.getItem('altroll2');           // перенос прошлой версии
+    if (o2) {
+      o2 = JSON.parse(o2);
+      S.coins = o2.coins || 0; S.nid = o2.nid || 1; S.disc = o2.disc || {}; S.daily = o2.daily || S.daily;
+      var byId = {};
+      function conv(x){
+        if (byId[x.id]) return byId[x.id];
+        var n = {id:x.id, i:x.i, q:Math.max(1, Math.round(x.p / 4)), f:Math.random() < .55 ? 1 : 0, t:Math.random() < .4 ? 1 : 0, k:Math.random() < .5 ? 1 : 0};
+        byId[x.id] = n; return n;
       }
+      S.inv = (o2.inv || []).map(conv);
+      for (var b in (o2.best || {})) S.best[b] = conv(o2.best[b]);
     }
   } catch(e) {}
 })();
-function save(){ try { localStorage.setItem('altroll2', JSON.stringify(S)); } catch(e) {} }
+function save(){ try { localStorage.setItem('altroll3', JSON.stringify(S)); } catch(e) {} }
 
 /* ---------- утилиты ---------- */
 function $(id){ return document.getElementById(id); }
@@ -228,18 +234,38 @@ function el(tag, cls, html){ var d = document.createElement(tag); if (cls) d.cla
 function rnd(a, b){ return a + Math.floor(Math.random() * (b - a + 1)); }
 function oneOf(a){ return a[Math.floor(Math.random() * a.length)]; }
 function rollInstance(idx){
-  var rg = RANGE[G[idx].r], s = [], p = 0;
-  for (var i = 0; i < STATS.length; i++){ var v = rnd(rg[0], rg[1]); s.push(v); p += v; }
-  return {s:s, g:oneOf(GENRES), a:oneOf(ACCS), p:p};
+  var rg = RANGE[G[idx].r];
+  return {q:rnd(rg[0], rg[1]), f:Math.random() < .55 ? 1 : 0, t:Math.random() < .4 ? 1 : 0, k:Math.random() < .5 ? 1 : 0};
 }
 function pick(){
   var t = G.reduce(function(s, m){ return s + m.w; }, 0), x = Math.random() * t;
   for (var i = 0; i < G.length; i++){ x -= G[i].w; if (x <= 0) return i; }
   return 0;
 }
-function rateOf(inst){ return BASE_INC[G[inst.i].r] * (0.5 + inst.p / 400); }
-function priceOf(inst){ return Math.max(1, Math.round(SELL_BASE[G[inst.i].r] * (0.6 + 0.8 * inst.p / 400))); }
+function traitMult(x){ return (x.f ? M_FAM : 1) * (x.t ? M_TYPE : 1) * (x.k ? M_GEN : 1); }
+function rateOf(x){ return BASE_INC[G[x.i].r] * (0.5 + x.q / 100) * traitMult(x); }        // монет в минуту
+function priceOf(x){ return Math.max(1, Math.round(SELL_BASE[G[x.i].r] * (0.6 + 0.8 * x.q / 100) * traitMult(x))); }
 function totalRate(){ return S.inv.reduce(function(s, x){ return s + rateOf(x); }, 0); }
+function fmtRate(n){ return (n < 1 ? n.toFixed(2) : n.toFixed(1)); }
+
+/* случайные события: каждый час суток по часам устройства */
+function hash(n){ n = (n ^ 61) ^ (n >>> 16); n = n + (n << 3); n = n ^ (n >>> 4); n = Math.imul(n, 0x27d4eb2d); n = n ^ (n >>> 15); return n >>> 0; }
+function hourMult(h){
+  var r = hash((h * 2654435761 + S.seed) | 0) % 100;
+  return r < EV_LUCKY ? 2 : (r < EV_LUCKY + EV_BAN ? 0 : 1);
+}
+function accrued(from, to){                // сколько монет накапало между двумя моментами с учётом событий
+  var t = totalRate();
+  if (t <= 0 || to <= from) return 0;
+  from = Math.max(from, to - 72 * 3600000);
+  var sum = 0, a = from;
+  while (a < to){
+    var h = Math.floor(a / 3600000), end = Math.min(to, (h + 1) * 3600000);
+    sum += (end - a) / 60000 * hourMult(h);
+    a = end;
+  }
+  return t * sum;
+}
 
 /* фото с запасным эмодзи */
 function avatar(m, cls){
@@ -258,16 +284,14 @@ function cardEl(inst, note){
   var m = G[inst.i], c = el('div', 'card ' + m.r);
   c.appendChild(avatar(m, 'big'));
   c.appendChild(el('span', 'mname', m.n));
-  c.appendChild(el('span', 'quote', m.q));
   c.appendChild(el('span', 'rarity ' + m.r, RL[m.r]));
-  c.appendChild(el('span', 'meta', inst.g + ' · ' + inst.a + (note ? ' · ' + note : '')));
-  var html = '';
-  for (var i = 0; i < STATS.length; i++){
-    html += '<div class="stat"><span>' + STAT_ICON[i] + ' ' + STATS[i] + '</span><span class="bar"><i style="width:' + inst.s[i] + '%"></i></span><span>' + inst.s[i] + '</span></div>';
-  }
-  c.appendChild(el('div', 'stats', html));
-  c.appendChild(el('div', 'power', 'Сила: ' + inst.p + ' / 400'));
-  c.appendChild(el('div', 'income', '+' + rateOf(inst).toFixed(1) + ' 🪙/час · продажа ' + priceOf(inst) + ' 🪙'));
+  if (note) c.appendChild(el('span', 'meta', note));
+  c.appendChild(el('div', 'chips',
+    '<span class="chip' + (inst.f ? ' on' : '') + '">' + FAM[inst.f] + '</span>' +
+    '<span class="chip' + (inst.t ? ' on' : '') + '">' + TYPE[inst.t] + '</span>' +
+    '<span class="chip' + (inst.k ? ' on' : '') + '">' + GEN[inst.k] + '</span>'));
+  c.appendChild(el('div', 'stats', '<div class="stat"><span>⭐ Сила</span><span class="bar"><i style="width:' + inst.q + '%"></i></span><span>' + inst.q + '</span></div>'));
+  c.appendChild(el('div', 'income', '+' + fmtRate(rateOf(inst)) + ' 🪙/мин · продажа ' + priceOf(inst) + ' 🪙'));
   return c;
 }
 
@@ -283,13 +307,11 @@ $('modal').addEventListener('click', function(e){ if (e.target === this) closeMo
 
 /* ---------- пассивный доход ---------- */
 function pendingNow(){
-  var t = totalRate(), dt = Math.max(0, Date.now() - S.last) / 3600000;
-  return Math.min(S.pend + t * dt, Math.max(S.pend, t * CAP_H));
+  var t = totalRate(), now = Date.now();
+  return Math.min(S.pend + accrued(S.last, now), Math.max(S.pend, t * CAP_H * 60));
 }
 function bank(){            // зафиксировать накопленное перед изменением инвентаря
-  var t = totalRate(), dt = Math.max(0, Date.now() - S.last) / 3600000;
-  S.pend = Math.min(S.pend + t * dt, Math.max(S.pend, t * CAP_H));
-  S.last = Date.now();
+  S.pend = pendingNow(); S.last = Date.now();
 }
 
 /* ---------- ежедневный бонус ---------- */
@@ -335,14 +357,14 @@ function renderInv(){
   $('sellDupes').disabled = !dupes().length;
   if (!S.inv.length){ list.appendChild(el('div', 'note', 'Пока пусто. Покрути барабан во вкладке «Крутить».')); return; }
   var arr = S.inv.slice().sort(function(a, b){
-    return RORD[G[b.i].r] - RORD[G[a.i].r] || b.p - a.p;
+    return RORD[G[b.i].r] - RORD[G[a.i].r] || rateOf(b) - rateOf(a);
   });
   arr.forEach(function(inst){
     var m = G[inst.i], row = el('div', 'row');
     row.appendChild(avatar(m, 'sm'));
     var info = el('div', 'info');
     info.appendChild(el('div', 'nm', m.n + ' <span class="rarity ' + m.r + '">' + RL[m.r] + '</span>'));
-    info.appendChild(el('div', 'sub', 'Сила ' + inst.p + ' · +' + rateOf(inst).toFixed(1) + ' 🪙/ч'));
+    info.appendChild(el('div', 'sub', TYPE[inst.t] + ' · ' + (inst.f ? 'полная' : 'неполная') + ' · ' + GEN[inst.k].toLowerCase() + ' · +' + fmtRate(rateOf(inst)) + '/мин'));
     row.appendChild(info);
     var sb = el('button', 'sellbtn', 'Продать · ' + priceOf(inst));
     var timer = null;
@@ -372,7 +394,7 @@ function renderCol(){
       cell.appendChild(avatar(m, 'sq'));
       var have = S.inv.filter(function(x){ return x.i === i; }).length;
       cell.appendChild(el('span', 'cn', m.n));
-      cell.appendChild(el('span', '', (S.best[i] ? 'лучшая ' + S.best[i].p : '') + (have ? ' · ×' + have : '')));
+      cell.appendChild(el('span', '', (S.best[i] ? 'лучшая ' + S.best[i].q : '') + (have ? ' · ×' + have : '')));
       cell.onclick = function(){ if (S.best[i]) openModal(S.best[i], 'лучший экземпляр'); };
     } else {
       cell.appendChild(el('div', 'av sq ' + m.r, '<span class="fb">❔</span>'));
@@ -384,11 +406,16 @@ function renderCol(){
   $('ccount').textContent = n;
 }
 function tick(){
-  var t = totalRate(), p = pendingNow();
+  var t = totalRate(), p = pendingNow(), now = Date.now();
+  var h = Math.floor(now / 3600000), mult = hourMult(h), left = Math.ceil(((h + 1) * 3600000 - now) / 60000);
+  var ev = $('event');
+  if (mult === 2){ ev.className = 'event good'; ev.textContent = '🎣 Час удачной рыбалки: доход ×2, ещё ' + left + ' мин'; }
+  else if (mult === 0){ ev.className = 'event bad'; ev.textContent = '🚫 Рыбалка запрещена: доход стоит, ещё ' + left + ' мин'; }
+  else { ev.className = 'event'; ev.textContent = ''; }
   $('pend').textContent = '🪙 ' + Math.floor(p);
   $('rateInfo').textContent = t > 0
-    ? '+' + t.toFixed(1) + ' 🪙 в час · максимум за 12 ч: ' + Math.floor(t * CAP_H)
-    : 'Нужна хотя бы одна альтушка в инвентаре';
+    ? '+' + fmtRate(t * mult) + ' 🪙 в минуту сейчас · максимум за 12 ч: ' + Math.floor(t * CAP_H * 60)
+    : 'Нужна хотя бы одна карточка в инвентаре';
   $('collect').disabled = Math.floor(p) < 1;
   $('incDot').classList.toggle('show', dailyAvailable() || Math.floor(p) >= 10);
 }
@@ -406,7 +433,7 @@ function sell(ids){
 }
 function dupes(){        // все копии, кроме самой сильной у каждой альтушки
   var bestOf = {}, out = [];
-  S.inv.forEach(function(x){ if (!bestOf[x.i] || x.p > bestOf[x.i].p) bestOf[x.i] = x; });
+  S.inv.forEach(function(x){ if (!bestOf[x.i] || rateOf(x) > rateOf(bestOf[x.i])) bestOf[x.i] = x; });
   S.inv.forEach(function(x){ if (bestOf[x.i] !== x) out.push(x); });
   return out;
 }
@@ -436,7 +463,7 @@ function idleCard(){
   var c = el('div', 'card idle');
   c.appendChild(el('div', 'av big', '<span class="fb">🦇</span>'));
   c.appendChild(el('span', 'mname', 'Нажми «Крутить»'));
-  c.appendChild(el('span', 'quote', 'У каждой выпавшей альтушки свои случайные характеристики'));
+  c.appendChild(el('span', 'quote', 'У каждой выпавшей карточки свои случайные характеристики'));
   return c;
 }
 $('spin').addEventListener('click', function(){
@@ -444,9 +471,9 @@ $('spin').addEventListener('click', function(){
   bank();
   S.coins -= COST; spinning = true;
   var idx = pick(), r = rollInstance(idx);
-  var inst = {id:S.nid++, i:idx, s:r.s, g:r.g, a:r.a, p:r.p};
+  var inst = {id:S.nid++, i:idx, q:r.q, f:r.f, t:r.t, k:r.k};
   S.inv.push(inst); S.disc[idx] = true;
-  if (!S.best[idx] || inst.p > S.best[idx].p) S.best[idx] = inst;
+  if (!S.best[idx] || rateOf(inst) > rateOf(S.best[idx])) S.best[idx] = inst;
   save(); updateTop(); tick();
   var res = $('result'), ph = idleCard();
   res.innerHTML = ''; res.appendChild(ph);
