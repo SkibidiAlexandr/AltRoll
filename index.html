@@ -126,14 +126,6 @@
   .nav .dot { position:absolute; top:6px; left:calc(50% + 8px); width:8px; height:8px; border-radius:50%; background:var(--accent); display:none; }
   .nav .dot.show { display:block; }
 
-  /* кнопка «Крутить» закреплена снизу по центру, над меню */
-  .spinbar { position:fixed; left:0; right:0; bottom:calc(64px + env(safe-area-inset-bottom,0px)); z-index:4;
-             display:flex; flex-direction:column; align-items:center; gap:6px; padding:0 16px; pointer-events:none; }
-  .spinbar > * { pointer-events:auto; }
-  .spinbar .btn { width:min(320px,100%); padding:15px; font-size:16px; box-shadow:0 8px 24px rgba(0,0,0,.55); }
-  .spinbar .note { background:rgba(23,16,31,.92); padding:4px 10px; border-radius:8px; }
-  .spinbar .note:empty { display:none; }
-  #v-spin { padding-bottom:96px; }
   .row.off { opacity:.62; }
   .modal { position:fixed; inset:0; background:rgba(8,4,12,.8); display:none; align-items:flex-start; justify-content:center; z-index:10; padding:16px; overflow:auto; }
   .modal.on { display:flex; }
@@ -153,9 +145,10 @@
   <section class="view on" id="v-spin">
     <div class="locs" id="locs"></div>
     <div id="result"></div>
+    <button class="btn" id="spin">Крутить</button>
+    <div class="note" id="spinNote"></div>
     <span class="h">Кто здесь водится</span>
     <div class="odds" id="odds"></div>
-    <div class="spinbar"><div class="note" id="spinNote"></div><button class="btn" id="spin">Крутить</button></div>
   </section>
 
   <!-- Клик -->
@@ -207,9 +200,9 @@
 </div>
 
 <nav class="nav">
-  <button data-v="spin" class="on"><span>🎰</span>Крутить</button>
   <button data-v="clk"><span>👆</span>Клик</button>
   <button data-v="inv"><span>🎒</span>Инвентарь</button>
+  <button data-v="spin" class="on"><span>🎰</span>Крутить</button>
   <button data-v="col"><span>📖</span>Коллекция</button>
   <button data-v="inc"><span>🎁</span>Доход<i class="dot" id="incDot"></i></button>
 </nav>
